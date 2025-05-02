@@ -10,6 +10,7 @@ declare module "iron-session" {
       address: string;
       signature?: string;
     };
+    nonce: string;
   }
 }
 

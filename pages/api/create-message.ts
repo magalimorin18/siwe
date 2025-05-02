@@ -1,41 +1,36 @@
 import { NextApiHandler } from "next";
 import { withIronSessionApiRoute } from "iron-session/next";
 import { sessionConfig } from "@/lib/session";
-import { createPublicClient, http } from "viem";
-import { lukso } from "viem/chains";
+
+import { createSiweMessage } from "viem/siwe";
 
 const loginHandler: NextApiHandler =
   // we wrap the handler with the withIronSessionApiRoute, which will augment the request object with a session object
   withIronSessionApiRoute(async (request, result) => {
-    const { message, signature } = request.body;
+    const { address, domain, uri, chainId } = request.body;
 
     try {
-      const publicClient = createPublicClient({
-        chain: lukso,
-        transport: http(),
-      });
-
-      const isValidSignature = await publicClient.verifySiweMessage({
-        message,
-        address: request.session.user?.address as `0x${string}`,
-        signature,
+      const siweMessage = createSiweMessage({
+        domain,
+        address,
+        uri,
+        version: "1",
+        chainId,
         nonce: request.session.nonce,
+        issuedAt: new Date(),
+        //Other properties that could be set to verify the validity of the signature
+        // expirationTime: new Date(),
+        // notBefore: new Date(),
       });
-
-      if (!isValidSignature) {
-        throw new Error("Invalid signature");
-      }
-
-      const userAddress = request.session.user?.address as `0x${string}`;
 
       request.session.user = {
-        address: userAddress,
-        signature,
+        address,
       };
+
       // encrypt to HTTP only cookie
       await request.session.save();
 
-      result.status(200).json({ isValidSignature });
+      result.status(200).json({ siweMessage });
     } catch (error: any) {
       console.log("❌ Error", error);
       result.status(500).json({ error: error.message });

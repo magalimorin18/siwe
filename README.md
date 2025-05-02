@@ -19,4 +19,4 @@ Run the project
 
 ### Deployment
 
-The [SIWE dApp](siwe-ten.vercel.app/) is deployed on Vercel.
+The [SIWE dApp](https://siwe-ten.vercel.app/) is deployed on Vercel.
