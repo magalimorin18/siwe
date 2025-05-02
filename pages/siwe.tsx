@@ -1,22 +1,23 @@
 "use client";
 import { useEffect, useReducer } from "react";
 
-declare global {
-  interface Window {
-    lukso?: any;
-  }
-}
-
 import { Address, createWalletClient, custom } from "viem";
 import { createSiweMessage, generateSiweNonce } from "viem/siwe";
 import { BASE_URL } from "../constants";
 import { lukso } from "viem/chains";
 import { Loader2 } from "lucide-react";
 import { formatRequest, initialState, reducer } from "../utils";
+
+import { withIronSessionSsr } from "iron-session/next";
+import { sessionConfig } from "@/lib/session";
+import { useRouter } from "next/router";
 import Link from "next/link";
 
-const SiweLogin = () => {
+type Props = { nonce: string };
+
+const SiweLogin = ({ nonce }: Props) => {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const { push } = useRouter();
 
   useEffect(() => {
     if (typeof window !== "undefined" && window.lukso) {
@@ -31,7 +32,10 @@ const SiweLogin = () => {
   }, []);
 
   const handleSiweLogin = async () => {
-    if (!state.walletClient) return;
+    if (!state.walletClient) {
+      alert("Please install LUKSO Wallet");
+      return;
+    }
 
     const [account] = await state.walletClient.requestAddresses();
     const chainId = await state.walletClient.getChainId();
@@ -42,7 +46,7 @@ const SiweLogin = () => {
       uri: window.location.href,
       version: "1",
       chainId,
-      nonce: generateSiweNonce(),
+      nonce,
       issuedAt: new Date(),
       //Other properties that could be set to verify the validity of the signature
       // expirationTime: new Date(),
@@ -69,7 +73,7 @@ const SiweLogin = () => {
     dispatch({ type: "SET_LOADING", payload: true });
 
     const response = await fetch(
-      `${BASE_URL}/siwe`,
+      `${BASE_URL}/login`,
       formatRequest("POST", { siweMessage, signature })
     );
     const responseJson = await response.json();
@@ -85,6 +89,11 @@ const SiweLogin = () => {
     });
 
     dispatch({ type: "SET_LOADING", payload: false });
+
+    if (responseJson.isValidSignature) {
+      console.log("PUSHING YOU TO LOG IN");
+      push("/");
+    }
   };
 
   return (
@@ -126,6 +135,15 @@ const SiweLogin = () => {
           </Link>
           deployed on LUKSO Mainnet
         </p>
+
+        <p>
+          2. A{" "}
+          <Link href="https://my.universalprofile.cloud/">
+            Universal Profile{" "}
+          </Link>
+          deployed on LUKSO Mainnet
+        </p>
+
         <button
           onClick={handleSiweLogin}
           disabled={state.isLoading}
@@ -187,5 +205,30 @@ const SiweLogin = () => {
     </div>
   );
 };
+
+export const getServerSideProps = withIronSessionSsr(
+  async function getServerSideProps({ req }) {
+    const user = req.session.user;
+
+    // redirect to home if user is already logged in
+    if (user?.address) {
+      return {
+        redirect: {
+          permanent: false,
+          destination: "/",
+        },
+      };
+    }
+
+    const nonce = generateSiweNonce();
+
+    return {
+      props: {
+        nonce,
+      },
+    };
+  },
+  sessionConfig
+);
 
 export default SiweLogin;
